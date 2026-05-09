@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Temple Simulado — Rutas entre Ciudades</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e8e8e8;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 24px;
+    }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 12px;
+      padding: 14px 18px;
+    }
+
+    .card-label {
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .card-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .card-value.green { color: #4ade80; }
+    .card-value.amber { color: #fbbf24; }
+
+    .section-title {
+      font-size: 12px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin: 20px 0 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: right;
+      padding: 6px 10px;
+      color: #555;
+      font-weight: 500;
+      border-bottom: 1px solid #2a2d3a;
+    }
+
+    th:first-child { text-align: left; }
+
+    td {
+      text-align: right;
+      padding: 6px 10px;
+      color: #ccc;
+      border-bottom: 1px solid #1e212e;
+    }
+
+    td:first-child {
+      text-align: left;
+      color: #fff;
+      font-weight: 500;
+    }
+
+    td.diagonal { color: #444; }
+
+    .route-pill {
+      display: inline-block;
+      background: #252836;
+      border: 1px solid #3a3d4e;
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      color: #a5b4fc;
+    }
+
+    .bar-bg {
+      height: 6px;
+      background: #252836;
+      border-radius: 3px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .bar-fill.orange { background: #f97316; }
+    .bar-fill.blue   { background: #3b82f6; }
+
+    #btnRun {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 20px;
+      border-radius: 10px;
+      border: 1px solid #3a3d4e;
+      background: #252836;
+      color: #e8e8e8;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #btnRun:hover { background: #2e3145; }
+    #btnRun:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .step-log {
+      max-height: 300px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #3a3d4e #1a1d27;
+    }
+
+    .step-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid #1e212e;
+      font-size: 12px;
+    }
+
+    .step-row:last-child { border-bottom: none; }
+
+    .step-num {
+      min-width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #252836;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: #888;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    .badge-green  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+    .badge-red    { background: #2d0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+    .badge-amber  { background: #2d1f00; color: #fbbf24; border: 1px solid #78350f; }
+    .badge-gray   { background: #1e212e; color: #888;    border: 1px solid #3a3d4e; }
+
+    .conclusion {
+      background: #0a1f14;
+      border: 1px solid #166534;
+      border-left: 4px solid #4ade80;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 16px;
+      display: none;
+    }
+
+    .conclusion-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #4ade80;
+      margin-bottom: 6px;
+    }
+
+    .conclusion-text {
+      font-size: 13px;
+      color: #a3d9b8;
+      line-height: 1.6;
+    }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 200px;
+      margin-bottom: 12px;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-row">
+    <div>
+      <h1>Temple Simulado</h1>
+      <div class="subtitle">Optimización de rutas — Lima · Cusco · Arequipa · Puno</div>
+    </div>
+    <button id="btnRun">▶ Ejecutar</button>
+  </div>
+
+  <!-- Tabla de distancias -->
+  <div class="card" style="margin-bottom:12px;">
+    <div class="card-label">Tabla de distancias reales (km)</div>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Lima</th>
+          <th>Cusco</th>
+          <th>Arequipa</th>
+          <th>Puno</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Lima</td>     <td class="diagonal">—</td><td>1105</td><td>1009</td><td>1274</td></tr>
+        <tr><td>Cusco</td>    <td>1105</td><td class="diagonal">—</td><td>521</td><td>389</td></tr>
+        <tr><td>Arequipa</td> <td>1009</td><td>521</td><td class="diagonal">—</td><td>304</td></tr>
+        <tr><td>Puno</td>     <td>1274</td><td>389</td><td>304</td><td class="diagonal">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Parámetros -->
+  <div class="grid2">
+    <div class="card">
+      <div class="card-label">Temperatura inicial</div>
+      <div class="card-value">T = 500</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Tasa de enfriamiento</div>
+      <div class="card-value">α = 0.95</div>
+    </div>
+  </div>
+
+  <!-- Estado actual -->
+  <div class="section-title">Estado actual</div>
+  <div class="card" style="margin-bottom:12px;">
+    <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:center;">
+      <div>
+        <div class="card-label">Ruta actual</div>
+        <div id="currentRoute" class="route-pill">—</div>
+      </div>
+      <div>
+        <div class="card-label">Distancia actual</div>
+        <div class="card-value amber" id="currentDist">—</div>
+      </div>
+      <div>
+        <div class="card-label">Mejor distancia</div>
+        <div class="card-value green" id="bestDist">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barras de progreso -->
+  <div class="card" style="margin-bottom:12px;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+      <div style="font-size:12px; color:#666; min-width:110px;">Temperatura: <span id="tempLabel" style="color:#f97316; font-weight:600;">500</span></div>
+      <div class="bar-bg"><div class="bar-fill orange" id="tempBar" style="width:100%;"></div></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div style="font-size:12px; color:#666; min-width:110px;">Progreso:</div>
+      <div class="bar-bg"><div class="bar-fill blue" id="progBar" style="width:0%;"></div></div>
+    </div>
+  </div>
+
+  <!-- Gráfico -->
+  <div class="section-title">Evolución de la distancia total</div>
+  <div class="card" style="margin-bottom:12px;">
+    <div class="chart-wrap">
+      <canvas id="chartDist"></canvas>
+    </div>
+  </div>
+
+  <!-- Log de iteraciones -->
+  <div class="section-title">Registro de iteraciones</div>
+  <div class="card">
+    <div class="step-log" id="stepLog">
+      <div style="color:#555; font-size:13px; padding:10px 0;">Presiona Ejecutar para comenzar...</div>
+    </div>
+  </div>
+
+  <!-- Conclusión -->
+  <div class="conclusion" id="conclusionBox">
+    <div class="conclusion-title">✓ Algoritmo convergió</div>
+    <div class="conclusion-text" id="conclusionText"></div>
+  </div>
+
+  <!-- Nota rutas equivalentes -->
+  <div id="noteEquiv" style="display:none; margin-top:12px; background:#1a1f2e; border:1px solid #3b4a6b; border-left:4px solid #3b82f6; border-radius:10px; padding:14px 18px;">
+    <div style="font-size:13px; font-weight:600; color:#60a5fa; margin-bottom:6px;">Nota: rutas equivalentes</div>
+    <div style="font-size:13px; color:#93b4d8; line-height:1.6;">
+      Lima → Arequipa → Puno → Cusco → Lima y Lima → Cusco → Puno → Arequipa → Lima
+      son la <strong style="color:#bfdbfe">misma ruta recorrida en sentido contrario</strong>.
+      Ambas suman 2807 km. No hay error — el algoritmo encontró el óptimo global correctamente.
+    </div>
+  </div>
+
+<script>
+  const dist = {
+    Lima:     {Lima:0,    Cusco:1105, Arequipa:1009, Puno:1274},
+    Cusco:    {Lima:1105, Cusco:0,    Arequipa:521,  Puno:389},
+    Arequipa: {Lima:1009, Cusco:521,  Arequipa:0,    Puno:304},
+    Puno:     {Lima:1274, Cusco:389,  Arequipa:304,  Puno:0}
+  };
+
+  // Lima siempre es inicio y fin; solo se permutan las ciudades intermedias
+  const middleCities = ['Cusco','Arequipa','Puno'];
+
+  function routeDist(middle) {
+    // Lima → middle[0] → middle[1] → middle[2] → Lima
+    const full = ['Lima', ...middle, 'Lima'];
+    let d = 0;
+    for(let i=0;i<full.length-1;i++) d += dist[full[i]][full[i+1]];
+    return d;
+  }
+
+  function routeStr(middle){ return 'Lima → ' + middle.join(' → ') + ' → Lima'; }
+
+  function swap(arr,i,j){ const a=[...arr]; [a[i],a[j]]=[a[j],a[i]]; return a; }
+
+  let chartInstance = null;
+  const histLabels = [], histData = [];
+
+  function initChart() {
+    if(chartInstance) chartInstance.destroy();
+    histLabels.length = 0;
+    histData.length   = 0;
+    const ctx = document.getElementById('chartDist').getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: histLabels,
+        datasets: [{
+          label: 'Mejor distancia (km)',
+          data: histData,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.08)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            ticks: { color: '#555', font: { size: 10 }, maxTicksLimit: 10 },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          },
+          y: {
+            ticks: { color: '#555', font: { size: 10 } },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          }
+        },
+        animation: { duration: 0 }
+      }
+    });
+  }
+
+  let running = false;
+
+  document.getElementById('btnRun').addEventListener('click', () => {
+    if(running) return;
+    running = true;
+
+    const btn = document.getElementById('btnRun');
+    btn.disabled = true;
+    btn.textContent = '⏳ Ejecutando...';
+
+    document.getElementById('stepLog').innerHTML = '';
+    document.getElementById('conclusionBox').style.display = 'none';
+    document.getElementById('noteEquiv').style.display = 'none';
+    initChart();
+
+    let T         = 500;
+    const alpha   = 0.95;
+    const Tmin    = 10;
+    const maxIter = 100;
+    let iter      = 0;
+    let step      = 1;
+
+    let current  = ['Cusco','Arequipa','Puno'];
+    let currentD = routeDist(current);
+    let best     = [...current];
+    let bestD    = currentD;
+    const initialD = currentD;
+
+    document.getElementById('currentRoute').textContent = routeStr(current);
+    document.getElementById('currentDist').textContent  = currentD + ' km';
+    document.getElementById('bestDist').textContent     = bestD    + ' km';
+    document.getElementById('tempLabel').textContent    = Math.round(T);
+
+    function logStep(num, intercambio, newRoute, newD, delta, prob, rand, accepted, note) {
+      const log = document.getElementById('stepLog');
+
+      let badge = '';
+      if(accepted === 'mejor')
+        badge = `<span class="badge badge-green">✓ Acepta — mejora ${Math.abs(delta)} km</span>`;
+      else if(accepted === 'prob')
+        badge = `<span class="badge badge-amber">~ Acepta probabilístico — p=${prob.toFixed(3)} > ${rand.toFixed(3)}</span>`;
+      else
+        badge = `<span class="badge badge-red">✗ Rechaza — p=${prob.toFixed(3)} < ${rand.toFixed(3)}</span>`;
+
+      if(note) badge += ` <span class="badge badge-gray">${note}</span>`;
+
+      const row = document.createElement('div');
+      row.className = 'step-row';
+      row.innerHTML = `
+        <div class="step-num">${num}</div>
+        <div style="flex:1;">
+          <div style="color:#666; font-size:11px; margin-bottom:3px;">Intercambio: ${intercambio} &nbsp;·&nbsp; T = ${Math.round(T)}</div>
+          <div class="route-pill" style="font-size:11px;">${routeStr(newRoute)}</div>
+          <div style="font-size:11px; color:#666; margin-top:3px;">${newD} km &nbsp;·&nbsp; Δ = ${delta > 0 ? '+':''}${delta} km</div>
+          <div>${badge}</div>
+        </div>`;
+      log.prepend(row);
+    }
+
+    function isReverse(r) {
+      const rev = [...r].reverse();
+      return rev.join(',') === ['Cusco','Puno','Arequipa'].join(',') ||
+             r.join(',')   === ['Cusco','Puno','Arequipa'].join(',') ||
+             rev.join(',') === ['Arequipa','Puno','Cusco'].join(',') ||
+             r.join(',')   === ['Arequipa','Puno','Cusco'].join(',');
+    }
+
+    function tick() {
+      if(T < Tmin || iter >= maxIter) {
+        document.getElementById('conclusionBox').style.display = 'block';
+        const mejoraPct = (((initialD - bestD) / initialD) * 100).toFixed(1);
+        document.getElementById('conclusionText').textContent =
+          `Mejor ruta encontrada: ${routeStr(best)} — ${bestD} km. ` +
+          `Distancia inicial: ${initialD} km. ` +
+          `Mejora total: ${initialD - bestD} km (−${mejoraPct}%). ` +
+          `Temple Simulado exploró soluciones peores temporalmente para escapar de óptimos locales, ` +
+          `algo imposible con Ascenso de Colina simple.`;
+
+        if(isReverse(best)) {
+          document.getElementById('noteEquiv').style.display = 'block';
+        }
+
+        document.getElementById('progBar').style.width = '100%';
+        running = false;
+        btn.disabled  = false;
+        btn.textContent = '↺ Reiniciar';
+        return;
+      }
+
+      const i = Math.floor(Math.random() * middleCities.length);
+      let j = Math.floor(Math.random() * middleCities.length);
+      while(j === i) j = Math.floor(Math.random() * middleCities.length);
+
+      // Capturar nombres ANTES del swap para mostrarlos correctamente en el log
+      const nameI = current[i];
+      const nameJ = current[j];
+
+      const neighbor  = swap(current, i, j);
+      const neighborD = routeDist(neighbor);
+      const delta     = neighborD - currentD;
+      const prob      = delta < 0 ? 1 : Math.exp(-delta / T);
+      const rand      = Math.random();
+      let accepted, note = '';
+
+      if(delta <= 0) {
+        accepted = 'mejor';
+        current  = neighbor;
+        currentD = neighborD;
+        if(currentD < bestD){ best = [...current]; bestD = currentD; }
+      } else if(rand < prob) {
+        accepted = 'prob';
+        current  = neighbor;
+        currentD = neighborD;
+      } else {
+        accepted = 'rechaza';
+      }
+
+      if(T >= 400) note = 'T alta — exploración amplia';
+      else if(T < 50) note = 'T baja — converge';
+
+      if(step <= 20 || step % 4 === 0) {
+        logStep(step, `${nameI} ↔ ${nameJ}`, neighbor, neighborD, delta, prob, rand, accepted, note);
+      }
+
+      histLabels.push(step);
+      histData.push(bestD);
+      chartInstance.update();
+
+      document.getElementById('currentRoute').textContent = routeStr(current);
+      document.getElementById('currentDist').textContent  = currentD + ' km';
+      document.getElementById('bestDist').textContent     = bestD    + ' km';
+      document.getElementById('tempLabel').textContent    = Math.round(T);
+      document.getElementById('tempBar').style.width      = Math.min(100,(T/500)*100).toFixed(1)+'%';
+      document.getElementById('progBar').style.width      = Math.min(100,((iter+1)/maxIter)*100).toFixed(1)+'%';
+
+      T    *= alpha;
+      iter++;
+      step++;
+      setTimeout(tick, 50);
+    }
+
+    tick();
+  });
+</script>
+</body>
+</html>
